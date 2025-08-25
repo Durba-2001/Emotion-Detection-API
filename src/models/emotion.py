@@ -1,6 +1,6 @@
 # Import BaseModel and Field from Pydantic for data validation 
 from pydantic import BaseModel,Field
-from bson import ObjectId
+
 from datetime import datetime
 from typing import Optional
 # Schema for creating/updating an emotion record
