@@ -9,7 +9,6 @@ class EmotionCreate_forAdmin(BaseModel):
     emotion: Optional[str] = None
 class EmotionCreate_forUser(BaseModel):
     emotion: str  
-
 # Schema for storing/retrieving a complete emotion record 
 class EmotionResponse(BaseModel):
     id: str
