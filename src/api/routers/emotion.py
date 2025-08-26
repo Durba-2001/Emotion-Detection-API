@@ -73,7 +73,7 @@ async def get_emotions(
     if current_user.role == "admin" and user_id:
         query = {"user_id": user_id}
     elif current_user.role == "admin":
-        query = {}  # no filter → all records
+        query = {}  
     else:
         query = {"user_id": current_user.user_id}
 
