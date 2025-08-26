@@ -237,6 +237,26 @@ async def test_admin_update_emotion_and_user_id():
     # Reset dependency override back to normal user
     app.dependency_overrides[auth.get_current_user] = override_user
 
+@pytest.mark.asyncio
+async def test_update_with_invalid_emotion(tmp_path):
+    # Step 1: Upload an image as admin (or normal user)
+    image_path = "images/happy.jpg"
+    with open(image_path, "rb") as f:
+        files = [("files", ("happy.jpg", f, "image/jpeg"))]
+        app.dependency_overrides[auth.get_current_user] = override_admin
+        response = client.post("/emotions", files=files)
+    assert response.status_code == 201
+    emotion_id = response.json()[0]["id"]
+
+    # Step 2: Try updating with invalid emotion
+    invalid_payload = {
+        "emotion": "angrrryyyy",   # <-- not in CATEGORIES
+        "user_id": "U123"
+    }
+    update_resp = client.put(f"/emotions/{emotion_id}", json=invalid_payload)
+
+    # Step 3: Validate response
+    assert update_resp.status_code == 422 or update_resp.status_code == 400
 
 @pytest.mark.asyncio
 async def test_delete_emotion_record_by_user():
