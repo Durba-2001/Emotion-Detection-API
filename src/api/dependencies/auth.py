@@ -1,6 +1,6 @@
 import os
 from jose import jwt, JWTError               # Import JWT handling functions (encode/decode) and error class
-from datetime import datetime, timedelta     #  For setting token expiration times
+from datetime import datetime, timedelta ,timezone    #  For setting token expiration times
 from fastapi import Depends                       # For dependency 
 from fastapi.security import OAuth2PasswordBearer  # OAuth2 scheme (Bearer token in Authorization header)
 from passlib.context import CryptContext                 # Import CryptContext from passlib for password hashing and verification
@@ -9,7 +9,6 @@ from dotenv import load_dotenv,find_dotenv      # Load environment variables fro
 from src.utils.errors import  unauthorized # import error helpers
 from src.schemas.user import UserSchema
 from src.utils.logger import logger   
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 # Define OAuth2 authentication scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
@@ -20,7 +19,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 def create_access_token(data: dict, expires_delta: timedelta=None):
                             # Copy the input data so we don’t modify the original
-    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))    # Set expiration time -> now + default (60 mins) or custom delta
+    expire = datetime.now(timezone.utc) + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))    # Set expiration time -> now + default (60 mins) or custom delta
     payload = {
     "sub": data.get("username"),   
     "user_id": data.get("user_id"),

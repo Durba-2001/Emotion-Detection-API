@@ -7,7 +7,7 @@ from src.utils.errors import  unauthorized, validation_error # import error help
 from src.models.user import UserCreate,UserResponse
 from src.schemas.user import UserSchema
 from src.api.dependencies.auth import create_access_token
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi.security import OAuth2PasswordRequestForm
 from src.api.dependencies.auth import authenticate_user
 router = APIRouter()                          # Create a router object to group related endpoints (register, login)
@@ -33,9 +33,9 @@ async def register(user:UserCreate,db=Depends(get_db)):
     user_doc = UserSchema(user_id=user_id,username=user.username,
         hashed_password=hashed_pw,
         role=user.role,
-        created_at=datetime.utcnow())
+        created_at=datetime.now(timezone.utc))
        
-    await db.users.insert_one(user_doc.dict())
+    await db.users.insert_one(user_doc.model_dump())
     logger.info(f"User registered: {user.username} with user_id {user_id}")
 
     # Return safe response

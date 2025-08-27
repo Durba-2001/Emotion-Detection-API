@@ -7,7 +7,7 @@ from src.schemas.emotion import EmotionSchema  # MongoDB document schema for emo
 from src.api.dependencies.database import get_db  # Dependency to get MongoDB database
 from src.utils.errors import validation_error,not_found  # Custom error for validation failures
 from src.services.image_service import validate_image  # Service to validate image size & format
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId
 from src.utils.logger import logger
 from src.utils.constants import EMOJI_MAP,CATEGORIES
@@ -40,11 +40,10 @@ async def upload_and_analyze_images(
             emotion=emotion_data["emotion"],  # Detected emotion
             emoji=emotion_data["emoji"],  # Corresponding emoji
             metadata=emotion_data.get("metadata", {}) , # Optional metadata (like image size)
-            created_at=datetime.utcnow(),
-            updated_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
         )
-        
-        insert_result = await db.emotions.insert_one(emotion_doc.dict())  # Insert document into MongoDB
+        insert_result = await db.emotions.insert_one(emotion_doc.model_dump())  # Insert document into MongoDB
         emotion_id = str(insert_result.inserted_id)
         logger.info(f"Inserted emotion record: {emotion_id} for file: {file.filename}")
 
@@ -148,7 +147,7 @@ async def update_emotion_record(
         raise not_found("Record not found")
     logger.info(f"Record found for update | record_id={record['_id']} | user_id={record['user_id']}")
     # Choose validation depending on role
-    update_data = payload.dict()
+    update_data = payload.model_dump()
     if current_user.role != "admin":
         if record["user_id"] != current_user.user_id:
             raise validation_error("You are not allowed to update this record")
