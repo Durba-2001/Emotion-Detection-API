@@ -283,7 +283,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_update_emotion_record_invalid_id():
-    # Step 1: Upload an initial image to create a record
+    # Upload an initial image to create a record
     image_path = "images/happy.jpg"
     with open(image_path, "rb") as f:
         files = [("files", ("happy.jpg", f, "image/jpeg"))]
@@ -293,16 +293,16 @@ async def test_update_emotion_record_invalid_id():
     assert len(data) == 1
     created_id = data[0]["id"]   # valid record id
 
-    # Step 2: Use a fake id instead of created_id
+    # Use a fake id instead of created_id
     fake_id = "64a9f1b77c99999999999999"
 
-    # Step 3: Prepare payload
+    # Prepare payload
     payload = {"emotion": "happy"}
 
-    # Step 4: Try updating with fake id
+    # Try updating with fake id
     update_resp = client.put(f"/emotions/{fake_id}", json=payload)
 
-    # Step 5: Assert 404 not found
+    # Assert 404 not found
     assert update_resp.status_code == 404
     
 @pytest.mark.asyncio
