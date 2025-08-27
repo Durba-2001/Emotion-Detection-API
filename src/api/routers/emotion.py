@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, UploadFile, File, Query, Path,Body  # Im
 from typing import List, Optional,Union # For typing hints (list of files, optional query params)
 from src.api.dependencies.auth import get_current_user  # Dependency to get the logged-in user from JWT token
 from src.services.emotion_service import analyzed_emotion_from_image  # Service to analyze emotions from an image
-from src.models.emotion import EmotionCreate_forAdmin,EmotionCreate_forUser, EmotionResponse  # Pydantic models for request and response validation
+from src.models.emotion import EmotionCreate, EmotionResponse  # Pydantic models for request and response validation
 from src.schemas.emotion import EmotionSchema  # MongoDB document schema for emotions
 from src.api.dependencies.database import get_db  # Dependency to get MongoDB database
-from src.utils.errors import validation_error,not_found  # Custom error for validation failures
+from src.utils.errors import validation_error,not_found,forbid_error  # Custom error for validation failures
 from src.services.image_service import validate_image  # Service to validate image size & format
 from datetime import datetime, timezone
 from bson import ObjectId
@@ -74,6 +74,8 @@ async def get_emotions(
     elif current_user.role == "admin":
         query = {}  
     else:
+        if user_id and user_id != current_user.user_id:
+            raise forbid_error(f"You are not allowed to access other user's records whose id {user_id}")
         query = {"user_id": current_user.user_id}
 
     records = db.emotions.find(query)
@@ -125,47 +127,59 @@ async def update_emotion_record(
     id: str,
     current_user=Depends(get_current_user),
     db=Depends(get_db),
-    payload: Union[ EmotionCreate_forAdmin,EmotionCreate_forUser] = Body(...)
+    emotion: EmotionCreate = Body(...)
 ):
-    
     logger.info(f"Update request started | record_id={id} | user_id={current_user.user_id} | role={current_user.role}")
+    
+    # Parse ID
     try:
         object_id = ObjectId(id)
         query = {"_id": object_id}
-        logger.info(f"Parsed ID as ObjectId: {object_id}")
     except Exception:
         query = {"custom_id": id}
-        logger.info(f"Using custom_id for query: {id}")
 
+    # Non-admins can only access their own records
     if current_user.role != "admin":
         query["user_id"] = current_user.user_id
-        logger.debug(f"User is not admin, applied filter: user_id={current_user.user_id}")
-#raise validation_error("You are not an admin!!")
 
     record = await db.emotions.find_one(query)
     if not record:
         raise not_found("Record not found")
-    logger.info(f"Record found for update | record_id={record['_id']} | user_id={record['user_id']}")
-    # Choose validation depending on role
-    update_data = payload.model_dump()
+
+    update_data = emotion.model_dump(exclude_unset=True)
+
+    # Restrict normal users
     if current_user.role != "admin":
         if record["user_id"] != current_user.user_id:
             raise validation_error("You are not allowed to update this record")
-        update_data = {"emotion": update_data["emotion"]}
-        logger.debug(f"Non-admin update restricted to emotion only: {update_data}")
-    # Auto-update emoji
-    if "emotion" in update_data:
-        emotion = update_data["emotion"].lower()
-        if emotion not in CATEGORIES:
-            raise validation_error(f"Invalid emotion '{emotion}', must be one of {list(CATEGORIES)}")
-        update_data["emoji"] = EMOJI_MAP[emotion]        
-        logger.debug(f"Emoji auto-set for emotion '{emotion}': {update_data['emoji']}")
-    logger.info(f"Updating record | record_id={record['_id']} | update_data={update_data}")
+        if "user_id" in update_data and update_data["user_id"] != current_user.user_id:
+            raise forbid_error(f"You are not allowed to update another user's record (user_id={update_data['user_id']})")
+
+        # Only emotion + metadata allowed
+        allowed_fields = {}
+        if "emotion" in update_data:
+            allowed_fields["emotion"] = update_data["emotion"]
+        if "metadata" in update_data:
+            allowed_fields["metadata"] = {**(record.get("metadata") or {}), **update_data["metadata"]}
+        update_data = allowed_fields
+
+    # Auto-set emoji if emotion provided
+    if "emotion" in update_data and update_data["emotion"]:
+        emotion_val = update_data["emotion"].lower()
+        if emotion_val not in CATEGORIES:
+            raise validation_error(f"Invalid emotion '{emotion_val}', must be one of {list(CATEGORIES)}")
+        update_data["emoji"] = EMOJI_MAP[emotion_val]
+
+    # Always update timestamp
+    update_data["updated_at"] = datetime.now(timezone.utc)
+
+    # Update DB
     await db.emotions.update_one({"_id": record["_id"]}, {"$set": update_data})
     updated_record = await db.emotions.find_one({"_id": record["_id"]})
 
     updated_record["id"] = str(updated_record["_id"])
     del updated_record["_id"]
+
     logger.success(f"Update successful | record_id={updated_record['id']}")
     return EmotionResponse(**updated_record)
 
@@ -177,25 +191,30 @@ async def delete_emotion_record(
     db=Depends(get_db)  # Get database connection
 ):
     logger.info(f"Delete request for record ID: {id} by user: {current_user.username}")
-    record=None
+    record = None
+
     try:
         object_id = ObjectId(id)
-        record = await db.emotions.find_one({"_id": object_id, "user_id": current_user.user_id})
+        query = {"_id": object_id}
     except Exception as e:
         logger.warning(f"ID is not a valid ObjectId: {id}, trying custom_id. Error: {e}")
-        # If conversion fails or record not found, try custom string ID
-        record = await db.emotions.find_one({"custom_id": id, "user_id": current_user.user_id})
-    if record:
-            object_id = record["_id"]  # Use actual ObjectId from record
-            logger.info(f"Record found: {object_id}, deleting now.")
-    else:  # If not found
-        logger.error(f"Record not found for ID: {id} and user: {current_user.username}")
-        raise not_found("Record not found")  # Raise custom error
-    # RBAC check: only admin OR owner can delete
+        query = {"custom_id": id}
+
+    # Admin can delete any record, normal users can only delete their own
+    if current_user.role != "admin":
+        query["user_id"] = current_user.user_id
+
+    record = await db.emotions.find_one(query)
+
+    if not record:
+        logger.error(f"Record not found for ID: {id}")
+        raise not_found("Record not found")
+
+    # RBAC check: if not admin, must be owner
     if current_user.role != "admin" and record["user_id"] != current_user.user_id:
         logger.error(f"User {current_user.username} not allowed to delete record {id}")
         raise validation_error("You are not allowed to delete this record")
-        
-    await db.emotions.delete_one({"_id": object_id})  # Delete record from DB
-    logger.success(f"Record successfully deleted: {object_id}")
-    return {"message":"Deleted succesfully"}
+
+    await db.emotions.delete_one({"_id": record["_id"]})  # Delete record
+    logger.success(f"Record successfully deleted: {record['_id']}")
+    return {"message": "Deleted successfully"}

@@ -20,3 +20,6 @@ def unauthorized(detail: str = "Unauthorized"):
 #  function for "Validation Error" (422) errors
 def validation_error(detail: str = "Validation failed"):
     return api_exception(detail, status.HTTP_422_UNPROCESSABLE_ENTITY)  # Calls api_exception with status 422
+
+def forbid_error(detail:str="Forbidden"):
+    return api_exception(detail, status.HTTP_403_FORBIDDEN)
