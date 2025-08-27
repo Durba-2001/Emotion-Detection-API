@@ -124,7 +124,7 @@ async def test_get_emotion_record_by_id_admin():
     # Override current_user to admin
     app.dependency_overrides[auth.get_current_user] = override_admin
 
-    # Admin fetches any record - should succeed regardless of user_id
+    # Admin fetches any record 
     resp = client.get(f"/emotions/{emotion_id}")
     assert resp.status_code == 200
     record = resp.json()
