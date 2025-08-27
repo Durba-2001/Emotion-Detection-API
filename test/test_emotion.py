@@ -59,7 +59,7 @@ async def test_upload_no_files():
 
 @pytest.mark.asyncio
 async def test_upload_valid_jpeg_file():
-    image_path = "images\happy.jpg"   
+    image_path = "images/happy.jpg"   
     with open(image_path, "rb") as f:
         files = [("files", ("happy.jpg", f, "image/jpeg"))]
 
@@ -206,6 +206,28 @@ async def test_update_emotion_record():
     assert "emoji" in updated_record  
 
 @pytest.mark.asyncio
+async def test_normal_user_cannot_update_other_users_record():
+    # Upload an initial image as user "U123"
+    image_path = "images/sad.jpg"
+    with open(image_path, "rb") as f:
+        files = [("files", ("sad.jpg", f, "image/jpeg"))]
+        response = client.post("/emotions", files=files)
+    assert response.status_code == 201
+    data = response.json()
+    emotion_id = data[0]["id"]
+
+    # Try to update with a different user_id (simulating forbidden attempt)
+    payload = {
+        "user_id": "some_other_user",   # different from creator
+        "emotion": "angry"
+    }
+
+    update_resp = client.put(f"/emotions/{emotion_id}", json=payload)
+
+    # Assert forbidden
+    assert update_resp.status_code == 403
+
+@pytest.mark.asyncio
 async def test_admin_update_emotion_and_user_id():
     # Upload an image as normal user "U123"
     image_path = "images/happy.jpg"
@@ -257,7 +279,32 @@ async def test_update_with_invalid_emotion(tmp_path):
 
     # Step 3: Validate response
     assert update_resp.status_code == 422 or update_resp.status_code == 400
+import pytest
 
+@pytest.mark.asyncio
+async def test_update_emotion_record_invalid_id():
+    # Step 1: Upload an initial image to create a record
+    image_path = "images/happy.jpg"
+    with open(image_path, "rb") as f:
+        files = [("files", ("happy.jpg", f, "image/jpeg"))]
+        response = client.post("/emotions", files=files)
+    assert response.status_code == 201
+    data = response.json()
+    assert len(data) == 1
+    created_id = data[0]["id"]   # valid record id
+
+    # Step 2: Use a fake id instead of created_id
+    fake_id = "64a9f1b77c99999999999999"
+
+    # Step 3: Prepare payload
+    payload = {"emotion": "happy"}
+
+    # Step 4: Try updating with fake id
+    update_resp = client.put(f"/emotions/{fake_id}", json=payload)
+
+    # Step 5: Assert 404 not found
+    assert update_resp.status_code == 404
+    
 @pytest.mark.asyncio
 async def test_delete_emotion_record_by_user():
     # Upload an image as user "U123"
