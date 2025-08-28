@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File, Query, Path,Body  # Import FastAPI router, dependency injection, file upload, query/path parameters
+from fastapi import APIRouter, Depends, UploadFile, File, Query, Path,Body,Request # Import FastAPI router, dependency injection, file upload, query/path parameters
 from typing import List, Optional,Union # For typing hints (list of files, optional query params)
 from src.api.dependencies.auth import get_current_user  # Dependency to get the logged-in user from JWT token
 from src.services.emotion_service import analyzed_emotion_from_image  # Service to analyze emotions from an image
@@ -11,12 +11,24 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from src.utils.logger import logger
 from src.utils.constants import EMOJI_MAP,CATEGORIES
-# Create a router for all emotion-related endpoints
+from dotenv import load_dotenv,find_dotenv
+import os
+from slowapi import Limiter,_rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+load_dotenv(find_dotenv())
+RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS"))
+RATE_LIMIT_WINDOW= int(os.environ.get("RATE_LIMIT_WINDOW"))
+RATE_LIMIT = f"{RATE_LIMIT_REQUESTS}/{RATE_LIMIT_WINDOW} seconds"
+# Initialize limiter (global)
+limiter = Limiter(key_func=get_remote_address)
 router = APIRouter(tags=["Emotions"])
 
 # Endpoint: Upload and analyze one or multiple images
 @router.post("", response_model=List[EmotionResponse], status_code=201)
-async def upload_and_analyze_images(
+@limiter.limit(RATE_LIMIT) 
+async def upload_and_analyze_images(request:Request,
     files: Optional[List[UploadFile]] = File(None),  # Accept multiple uploaded files
     current_user=Depends(get_current_user),  # Get current logged-in user
     db=Depends(get_db)  # Get database connection
@@ -63,7 +75,8 @@ async def upload_and_analyze_images(
 
 # Endpoint: Get all emotion records with optional filters
 @router.get("", response_model=List[EmotionResponse])
-async def get_emotions(
+@limiter.limit(RATE_LIMIT) 
+async def get_emotions(request:Request,
     user_id: Optional[str] = Query(None),
     current_user=Depends(get_current_user),
     db=Depends(get_db)
@@ -92,7 +105,8 @@ async def get_emotions(
 
 
 @router.get("/{id}", response_model=EmotionResponse)
-async def get_emotion_record_with_id(
+@limiter.limit(RATE_LIMIT) 
+async def get_emotion_record_with_id(request:Request,
     id: str = Path(..., description="ID of the emotion record"),
     current_user=Depends(get_current_user),
     db=Depends(get_db)
@@ -123,7 +137,8 @@ async def get_emotion_record_with_id(
 
 # Endpoint: Update an emotion record
 @router.put("/{id}", response_model=EmotionResponse)
-async def update_emotion_record(
+@limiter.limit(RATE_LIMIT) 
+async def update_emotion_record(request:Request,
     id: str,
     current_user=Depends(get_current_user),
     db=Depends(get_db),
@@ -185,7 +200,8 @@ async def update_emotion_record(
 
 # Endpoint: Delete an emotion record
 @router.delete("/{id}", status_code=204)
-async def delete_emotion_record(
+@limiter.limit(RATE_LIMIT) 
+async def delete_emotion_record(request:Request,
     id: str,  # ID of record to delete
     current_user=Depends(get_current_user),  # Get logged-in user
     db=Depends(get_db)  # Get database connection
