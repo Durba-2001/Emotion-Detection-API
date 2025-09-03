@@ -9,9 +9,9 @@ from slowapi.middleware import SlowAPIMiddleware
 load_dotenv(find_dotenv())
 RATE_LIMIT_REQUESTS = int(os.environ.get("RATE_LIMIT_REQUESTS"))
 RATE_LIMIT_WINDOW= int(os.environ.get("RATE_LIMIT_WINDOW"))
-RATE_LIMIT = f"{RATE_LIMIT_REQUESTS}/{RATE_LIMIT_WINDOW} seconds"
+RATE_LIMIT = f"{RATE_LIMIT_REQUESTS}/{RATE_LIMIT_WINDOW} second"
 # Initialize limiter (global)
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address,default_limits=[RATE_LIMIT])
 
 app = FastAPI(title="Emotion Detection API", version="1.0")
 

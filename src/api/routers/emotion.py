@@ -27,7 +27,7 @@ router = APIRouter(tags=["Emotions"])
 
 # Endpoint: Upload and analyze one or multiple images
 @router.post("", response_model=List[EmotionResponse], status_code=201)
-@limiter.limit(RATE_LIMIT) 
+
 async def upload_and_analyze_images(request:Request,
     files: Optional[List[UploadFile]] = File(None),  # Accept multiple uploaded files
     current_user=Depends(get_current_user),  # Get current logged-in user
@@ -75,7 +75,7 @@ async def upload_and_analyze_images(request:Request,
 
 # Endpoint: Get all emotion records with optional filters
 @router.get("", response_model=List[EmotionResponse])
-@limiter.limit(RATE_LIMIT) 
+
 async def get_emotions(request:Request,
     user_id: Optional[str] = Query(None),
     current_user=Depends(get_current_user),
@@ -105,7 +105,7 @@ async def get_emotions(request:Request,
 
 
 @router.get("/{id}", response_model=EmotionResponse)
-@limiter.limit(RATE_LIMIT) 
+
 async def get_emotion_record_with_id(request:Request,
     id: str = Path(..., description="ID of the emotion record"),
     current_user=Depends(get_current_user),
@@ -137,7 +137,7 @@ async def get_emotion_record_with_id(request:Request,
 
 # Endpoint: Update an emotion record
 @router.put("/{id}", response_model=EmotionResponse)
-@limiter.limit(RATE_LIMIT) 
+
 async def update_emotion_record(request:Request,
     id: str,
     current_user=Depends(get_current_user),
@@ -200,7 +200,7 @@ async def update_emotion_record(request:Request,
 
 # Endpoint: Delete an emotion record
 @router.delete("/{id}", status_code=204)
-@limiter.limit(RATE_LIMIT) 
+
 async def delete_emotion_record(request:Request,
     id: str,  # ID of record to delete
     current_user=Depends(get_current_user),  # Get logged-in user
